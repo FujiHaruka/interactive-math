@@ -2,11 +2,65 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>interactive-math</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#F3F6FA" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#111725" media="(prefers-color-scheme: dark)">
+  <title>方程式タイル</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;600&family=STIX+Two+Text:ital,wght@1,600&family=Zen+Maru+Gothic:wght@500;700&display=swap">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h1>interactive-math</h1>
-  <p>GitHub Pages test page</p>
+  <div class="app">
+    <header class="top">
+      <div class="title">
+        <span class="kind">一次方程式</span>
+        <span class="lv" id="lv">Lv.1</span>
+        <button class="icon" id="sound" type="button" aria-label="効果音" aria-pressed="true">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="wave" d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>
+        </button>
+      </div>
+      <ol class="levels" id="levels" aria-label="問題を選ぶ"></ol>
+    </header>
+
+    <main class="board" id="board">
+      <p class="score" id="score"></p>
+      <div class="eq" id="eq">
+        <div class="side" data-side="0"><div class="stack"><div class="terms"></div><div class="denom"></div></div></div>
+        <div class="equals">=</div>
+        <div class="side" data-side="1"><div class="stack"><div class="terms"></div><div class="denom"></div></div></div>
+      </div>
+      <p class="coach" id="coach" aria-live="polite"></p>
+      <div class="preview" id="preview" aria-hidden="true"></div>
+    </main>
+
+    <nav class="tools">
+      <button type="button" id="undo">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>
+        戻す
+      </button>
+      <button type="button" id="hint" class="hint">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V16h8v-1.3A7 7 0 0 0 12 2z"/></svg>
+        ヒント
+      </button>
+      <button type="button" id="reset">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+        最初から
+      </button>
+    </nav>
+  </div>
+
+  <section class="sheet" id="sheet" aria-live="polite">
+    <div class="stars" id="stars"><span>★</span><span>★</span><span>★</span></div>
+    <p class="answer" id="answer"></p>
+    <p class="detail" id="detail"></p>
+    <div class="sheet-actions">
+      <button type="button" id="retry">もう一度</button>
+      <button type="button" id="next" class="primary">次の問題へ</button>
+    </div>
+  </section>
+
+  <script type="module" src="app.js"></script>
 </body>
 </html>
