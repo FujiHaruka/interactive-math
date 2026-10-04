@@ -69,8 +69,6 @@ export function move(state, id, toSide, index) {
   return normalized(sides);
 }
 
-export const hasX = (item) => item.kind === 'x' || (item.kind === 'group' && item.terms.some(hasX));
-
 export function merge(state, srcId, dstId) {
   const src = locate(state, srcId);
   const dst = locate(state, dstId);
@@ -86,18 +84,11 @@ export function merge(state, srcId, dstId) {
   return { sides };
 }
 
-export function divisor(state) {
-  for (const [side, terms] of state.sides.entries()) {
-    const other = state.sides[1 - side];
-    if (terms.length !== 1 || terms[0].kind !== 'x') continue;
-    if (other.some(hasX) || isOne(terms[0].coef)) continue;
-    return { side, id: terms[0].id, coef: terms[0].coef };
-  }
-  return null;
-}
+export const divisors = (state) =>
+  state.sides.flat().filter((t) => t.kind !== 'c' && !isOne(t.coef)).map((t) => ({ id: t.id, coef: t.coef }));
 
-export function divide(state) {
-  const d = divisor(state);
+export function divide(state, id) {
+  const d = divisors(state).find((c) => c.id === id);
   if (!d) return null;
   return normalized(state.sides.map((terms) => terms.map((t) => ({ ...t, coef: quotient(t.coef, d.coef) }))));
 }
@@ -161,9 +152,8 @@ function successors(state, shortcut) {
     }
   });
   const multiplies = multipliers(state).map((k) => [{ type: 'multiply', k }, multiply(state, k)]);
-  const d = divisor(state);
-  const divides = d ? [[{ type: 'divide', id: d.id }, divide(state)]] : [];
-  return [...expands, ...merges, ...multiplies, ...divides, ...moves];
+  const divides = divisors(state).map((d) => [{ type: 'divide', id: d.id }, divide(state, d.id)]);
+  return [...expands, ...merges, ...multiplies, ...moves, ...divides];
 }
 
 const itemKey = (t) =>

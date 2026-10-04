@@ -1,5 +1,5 @@
 import {
-  abs, answerOf, divide, divisor, expand, hasX, isOne, isSolved, lcm, locate, merge, move, multiply, neg,
+  abs, answerOf, divide, expand, isOne, isSolved, lcm, locate, merge, move, multiply, neg,
   parseEquation, ratText, solve,
 } from './equation.js';
 
@@ -15,16 +15,17 @@ const LEVELS = [
   { src: '4x + 2 - x = 8 + 3' },
   { src: '3x - 7 = 5x + 2', tip: '答えが分数になることもある' },
   { src: '1/2x + 1 = 4', tip: '1/2 で割る ＝ 2 倍する' },
-  { src: '2(x + 3) = 10', guide: true },
-  { src: '3(x - 2) = x + 4', tip: 'かっこはタップで開く' },
+  { src: '2(x + 3) = x + 10', guide: true },
+  { src: '3(x - 2) = x + 4', tip: 'かっこの中をタップすると開く' },
+  { src: '3(x - 2) = 9', guide: true },
   { src: '5 - 2(x - 3) = x', tip: 'かっこの前が − なら、開くと中身の符号が全部裏返る' },
-  { src: '4(x + 1) = 2(x + 5)' },
+  { src: '4(x + 1) = 2(x + 5)', tip: '両辺を 2 で割ってから開くと数が小さくなる' },
   { src: '1/3x = 4', guide: true },
   { src: '1/6x + 1/2 = 1/3x', tip: '赤い分母をつまんで = に落とすと、両辺に掛けられる' },
   { src: '1/2(x + 4) = 3', tip: '掛けてかっこの外が 1 になると、かっこはそのまま外れる' },
   { src: '1/3(x + 3) = 1/2x + 1', tip: 'つまんだ分母を別の分母に通すと、掛ける数が最小公倍数になる' },
 ];
-const DEFAULT_TIP = 'つまんで動かす ・ 重ねてまとめる ・ x をタップで割る';
+const DEFAULT_TIP = 'つまんで動かす ・ 重ねてまとめる ・ タップで割る';
 const MAX_FS = Math.min(44, Math.max(30, window.innerWidth / 9));
 const MIN_FS = 15;
 const DRAG_THRESHOLD = 8;
@@ -257,7 +258,7 @@ function say(text, tone = 'say') {
 }
 
 function clearHint() {
-  for (const el of chips.values()) el.classList.remove('hint-src', 'hint-dst', 'hint-tap');
+  for (const el of chips.values()) el.classList.remove('hint-src', 'hint-dst', 'hint-tap', 'hint-coef');
   eqEl.querySelectorAll('.hint-den').forEach((el) => el.classList.remove('hint-den'));
   equalsEl.classList.remove('hint-eq');
   sideEls.forEach((s) => s.classList.remove('hint-zone'));
@@ -282,14 +283,16 @@ function densFor(k) {
 }
 
 function guideText(step) {
-  if (step.type === 'expand') return `${termText(step.id)} をタップして、かっこを開こう`;
+  if (step.type === 'expand') return `${termText(step.id)} のかっこの中をタップして開こう`;
   if (step.type === 'multiply') {
     const [first, ...rest] = densFor(step.k).map((el) => el.dataset.d);
     const grab = rest.length ? `つまみ、${rest.join(' と ')} の上を通して` : 'つまんで';
     return `赤い分母 ${first} を${grab} = に落とそう（両辺 ×${step.k}）`;
   }
   if (step.type === 'divide') {
-    return `${termText(step.id)} をタップして、両辺を ${ratText(divisor(state).coef)} で割ろう`;
+    const { kind, coef } = locate(state, step.id).term;
+    const where = kind === 'group' ? `かっこの外の ${ratText(coef)}` : termText(step.id);
+    return `${where} をタップして、両辺を ${ratText(coef)} で割ろう`;
   }
   if (step.type === 'merge') return `${termText(step.id)} を ${termText(step.target)} に重ねてまとめよう`;
   return `${termText(step.id)} を = の${step.to ? '右' : '左'}へドラッグ（符号が裏返る）`;
@@ -300,7 +303,8 @@ function showHint() {
   if (!result?.first) return;
   clearHint();
   const step = result.first;
-  if (step.type === 'divide' || step.type === 'expand') chips.get(step.id).classList.add('hint-tap');
+  if (step.type === 'divide' && locate(state, step.id).term.kind === 'group') chips.get(step.id).classList.add('hint-coef');
+  else if (step.type === 'divide' || step.type === 'expand') chips.get(step.id).classList.add('hint-tap');
   else if (step.type === 'multiply') {
     densFor(step.k).forEach((el) => el.classList.add('hint-den'));
     equalsEl.classList.add('hint-eq');
@@ -490,6 +494,7 @@ function onPointerDown(e) {
   drag = {
     el, id, home, side: home, pointerId: e.pointerId, x0: e.clientX, y0: e.clientY, started: false, target: null,
     den: den?.closest('.term') === el ? den : null,
+    onCoef: e.target.closest('.op, .body')?.closest('.term') === el,
   };
 }
 
@@ -580,17 +585,12 @@ function shake(el) {
 
 function tap(d) {
   const term = locate(state, d.id).term;
-  if (term.kind === 'group') return runExpand(term);
-  const div = divisor(state);
-  if (div?.id === d.id) return runDivide(div);
+  if (term.kind === 'group' && !d.onCoef) return runExpand(term);
+  if (term.kind !== 'c' && !isOne(term.coef)) return runDivide(term);
   shake(d.el.querySelector('.face'));
   sfx.bad();
   buzz(30);
-  if (term.kind === 'c') return say('数の項はつまんで動かそう', 'warn');
-  if (state.sides.flat().some((t) => t.kind === 'group' && hasX(t))) return say('割る前に、かっこを開こう', 'warn');
-  if (state.sides.flat().filter((t) => t.kind === 'x').length > 1) return say('割れるのは x の項が 1 つにまとまってから', 'warn');
-  if (isOne(term.coef)) return say('x はもう 1x。反対側を 1 つにまとめよう', 'warn');
-  say('x の項を片側に 1 つだけにしてから割ろう', 'warn');
+  say(term.kind === 'c' ? '数の項はつまんで動かそう' : 'x の係数はもう 1。割らなくていい', 'warn');
 }
 
 function flyLabel(text, from, to, delay) {
@@ -654,7 +654,7 @@ async function runDivide(div) {
   await wait(ms(650));
   denomEls.forEach((el) => el.classList.remove('show'));
   busy = false;
-  commit(divide(state), { pop: state.sides.flat().map((t) => t.id) });
+  commit(divide(state, div.id), { pop: state.sides.flat().map((t) => t.id) });
 }
 
 function confetti(origin) {
