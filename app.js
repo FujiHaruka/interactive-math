@@ -1,5 +1,6 @@
 import {
-  abs, answerOf, divide, divisor, isOne, isSolved, locate, merge, move, neg, parseEquation, ratText, solve,
+  abs, answerOf, divide, divisor, expand, hasX, isOne, isSolved, lcm, locate, merge, move, multiply, neg,
+  parseEquation, ratText, solve,
 } from './equation.js';
 
 const LEVELS = [
@@ -14,6 +15,14 @@ const LEVELS = [
   { src: '4x + 2 - x = 8 + 3' },
   { src: '3x - 7 = 5x + 2', tip: '答えが分数になることもある' },
   { src: '1/2x + 1 = 4', tip: '1/2 で割る ＝ 2 倍する' },
+  { src: '2(x + 3) = 10', guide: true },
+  { src: '3(x - 2) = x + 4', tip: 'かっこはタップで開く' },
+  { src: '5 - 2(x - 3) = x', tip: 'かっこの前が − なら、開くと中身の符号が全部裏返る' },
+  { src: '4(x + 1) = 2(x + 5)' },
+  { src: '1/3x = 4', guide: true },
+  { src: '1/6x + 1/2 = 1/3x', tip: '赤い分母をつまんで = に落とすと、両辺に掛けられる' },
+  { src: '1/2(x + 4) = 3', tip: '掛けてかっこの外が 1 になると、かっこはそのまま外れる' },
+  { src: '1/3(x + 3) = 1/2x + 1', tip: 'つまんだ分母を別の分母に通すと、掛ける数が最小公倍数になる' },
 ];
 const DEFAULT_TIP = 'つまんで動かす ・ 重ねてまとめる ・ x をタップで割る';
 const MAX_FS = Math.min(44, Math.max(30, window.innerWidth / 9));
@@ -32,6 +41,8 @@ const scoreEl = $('#score');
 const previewEl = $('#preview');
 const sheetEl = $('#sheet');
 const levelsEl = $('#levels');
+const tokenEl = $('#token');
+const multEls = sideEls.map((s) => s.querySelector('.mult'));
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
 const store = {
@@ -82,6 +93,8 @@ const sfx = (() => {
     drop: () => tone(340, 0.08, 'triangle', 0.08),
     merge: () => { tone(660, 0.08); tone(990, 0.12, 'sine', 0.06, 0.06); },
     divide: () => { tone(440, 0.1, 'triangle'); tone(330, 0.16, 'triangle', 0.06, 0.12); },
+    multiply: () => { tone(330, 0.1, 'triangle'); tone(495, 0.16, 'triangle', 0.06, 0.12); },
+    expand: () => [600, 760, 900].forEach((f, i) => tone(f, 0.07, 'triangle', 0.06, i * 0.05)),
     bad: () => tone(160, 0.14, 'sawtooth', 0.03),
     win: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.22, 'triangle', 0.07, i * 0.09)),
   };
@@ -102,46 +115,74 @@ let solved = false;
 let drag = null;
 const chips = new Map();
 
+const fracHTML = (top, d) => `<span class="frac"><span>${top}</span><span class="den" data-d="${d}">${d}</span></span>`;
+
 function numHTML(r) {
   const a = abs(r);
-  return a.d === 1 ? `${a.n}` : `<span class="frac"><span>${a.n}</span><span>${a.d}</span></span>`;
+  return a.d === 1 ? `${a.n}` : fracHTML(a.n, a.d);
 }
 
 function bodyHTML(kind, coef) {
+  const a = abs(coef);
   if (kind === 'c') return numHTML(coef);
-  return `${isOne(abs(coef)) ? '' : numHTML(coef)}<i class="var">x</i>`;
+  if (kind === 'group') return isOne(a) ? '' : numHTML(coef);
+  const x = `${a.n === 1 ? '' : a.n}<i class="var">x</i>`;
+  return a.d === 1 ? x : fracHTML(x, a.d);
 }
 
 function valueHTML(kind, coef) {
   return `${coef.n < 0 ? '−' : ''}${bodyHTML(kind, coef)}`;
 }
 
+function textOf(item, lead) {
+  const a = abs(item.coef);
+  const sign = item.coef.n < 0 ? '−' : lead ? '' : '+';
+  if (item.kind === 'c') return `${sign}${ratText(a)}`;
+  const coef = isOne(a) ? '' : ratText(a);
+  if (item.kind === 'x') return `${sign}${coef}x`;
+  return `${sign}${coef}(${item.terms.map((t, k) => textOf(t, k === 0)).join('')})`;
+}
+
 function termText(id) {
   const { term, index } = locate(state, id);
-  const a = abs(term.coef);
-  const sign = term.coef.n < 0 ? '−' : index === 0 ? '' : '+';
-  if (term.kind === 'c') return `${sign}${ratText(a)}`;
-  return `${sign}${isOne(a) ? '' : ratText(a)}x`;
+  return textOf(term, index === 0);
 }
 
-function paint(el, kind, coef) {
+function paint(el, item, coef = item.coef) {
+  el.classList.toggle('neg', coef.n < 0);
   el.querySelector('.op').textContent = coef.n < 0 ? '−' : '+';
-  el.querySelector('.body').innerHTML = bodyHTML(kind, coef);
+  el.querySelector('.body').innerHTML = bodyHTML(item.kind, coef);
 }
 
-function chipFor(term) {
-  let el = chips.get(term.id);
+const FACE = '<div class="face"><span class="op"></span><span class="body"></span></div>';
+const GROUP_FACE =
+  '<div class="face"><span class="op"></span><span class="body"></span><span class="paren">(</span><span class="members"></span><span class="paren">)</span></div>';
+
+function chipFor(item) {
+  let el = chips.get(item.id);
   if (!el) {
     el = document.createElement('div');
-    el.className = 'term';
-    el.dataset.id = term.id;
-    el.innerHTML = '<div class="face"><span class="op"></span><span class="body"></span></div>';
-    chips.set(term.id, el);
+    el.className = item.kind === 'group' ? 'term group' : 'term';
+    el.dataset.id = item.id;
+    el.innerHTML = item.kind === 'group' ? GROUP_FACE : FACE;
+    chips.set(item.id, el);
   }
-  el.classList.toggle('kind-x', term.kind === 'x');
-  paint(el, term.kind, term.coef);
+  el.classList.toggle('kind-x', item.kind === 'x');
+  paint(el, item);
+  if (item.kind === 'group') el.querySelector('.members').replaceChildren(...item.terms.map((t, k) => placeChip(t, k, true)));
   return el;
 }
+
+function placeChip(item, index, member = false) {
+  const el = chipFor(item);
+  el.classList.toggle('lead', index === 0);
+  el.classList.toggle('member', member);
+  el.classList.remove('lifted', 'target', 'shake');
+  el.style.transform = '';
+  return el;
+}
+
+const idsOf = (item) => [item.id, ...(item.terms ?? []).map((t) => t.id)];
 
 function measure() {
   return new Map([...chips].map(([id, el]) => [id, el.getBoundingClientRect()]));
@@ -181,17 +222,12 @@ function popIn(el, delay = 0) {
   );
 }
 
+const carriedByGroup = (el, first) => el.classList.contains('member') && first.has(Number(el.closest('.group').dataset.id));
+
 function render(first = new Map(), pop = new Set()) {
-  const live = new Set();
+  const live = new Set(state.sides.flat().flatMap(idsOf));
   state.sides.forEach((terms, i) => {
-    const nodes = terms.map((t, k) => {
-      const el = chipFor(t);
-      el.classList.toggle('lead', k === 0);
-      el.classList.remove('lifted', 'target', 'shake');
-      el.style.transform = '';
-      live.add(t.id);
-      return el;
-    });
+    const nodes = terms.map((t, k) => placeChip(t, k));
     if (!nodes.length) {
       const zero = document.createElement('span');
       zero.className = 'zero';
@@ -206,9 +242,12 @@ function render(first = new Map(), pop = new Set()) {
   for (const id of live) {
     const el = chips.get(id);
     const before = first.get(id);
-    if (before) flipFrom(el, before);
-    if (!before) popIn(el, ms(n++ * 60));
-    else if (pop.has(id)) popIn(el);
+    if (!before) {
+      popIn(el, ms(n++ * 60));
+      continue;
+    }
+    if (!carriedByGroup(el, first)) flipFrom(el, before);
+    if (pop.has(id)) popIn(el);
   }
 }
 
@@ -219,10 +258,36 @@ function say(text, tone = 'say') {
 
 function clearHint() {
   for (const el of chips.values()) el.classList.remove('hint-src', 'hint-dst', 'hint-tap');
+  eqEl.querySelectorAll('.hint-den').forEach((el) => el.classList.remove('hint-den'));
+  equalsEl.classList.remove('hint-eq');
   sideEls.forEach((s) => s.classList.remove('hint-zone'));
 }
 
+const isTopDen = (el) => !el.closest('.member');
+
+function densFor(k) {
+  const dens = [...eqEl.querySelectorAll('.den')].filter((el) => isTopDen(el) && k % Number(el.dataset.d) === 0);
+  const exact = dens.find((el) => Number(el.dataset.d) === k);
+  if (exact) return [exact];
+  const picked = [];
+  let acc = 1;
+  for (const el of dens.sort((a, b) => b.dataset.d - a.dataset.d)) {
+    const next = lcm(acc, Number(el.dataset.d));
+    if (next === acc) continue;
+    picked.push(el);
+    acc = next;
+    if (acc === k) break;
+  }
+  return picked;
+}
+
 function guideText(step) {
+  if (step.type === 'expand') return `${termText(step.id)} をタップして、かっこを開こう`;
+  if (step.type === 'multiply') {
+    const [first, ...rest] = densFor(step.k).map((el) => el.dataset.d);
+    const grab = rest.length ? `つまみ、${rest.join(' と ')} の上を通して` : 'つまんで';
+    return `赤い分母 ${first} を${grab} = に落とそう（両辺 ×${step.k}）`;
+  }
   if (step.type === 'divide') {
     return `${termText(step.id)} をタップして、両辺を ${ratText(divisor(state).coef)} で割ろう`;
   }
@@ -235,8 +300,11 @@ function showHint() {
   if (!result?.first) return;
   clearHint();
   const step = result.first;
-  if (step.type === 'divide') chips.get(step.id).classList.add('hint-tap');
-  else {
+  if (step.type === 'divide' || step.type === 'expand') chips.get(step.id).classList.add('hint-tap');
+  else if (step.type === 'multiply') {
+    densFor(step.k).forEach((el) => el.classList.add('hint-den'));
+    equalsEl.classList.add('hint-eq');
+  } else {
     chips.get(step.id).classList.add('hint-src');
     if (step.type === 'merge') chips.get(step.target).classList.add('hint-dst');
     else sideEls[step.to].classList.add('hint-zone');
@@ -281,10 +349,11 @@ function sideAt(x) {
 function findTarget(x, y) {
   const kind = locate(state, drag.id).term.kind;
   for (const [id, el] of chips) {
-    if (id === drag.id) continue;
+    const term = locate(state, id)?.term;
+    if (id === drag.id || !term || term.kind === 'group') continue;
     const r = el.getBoundingClientRect();
     if (x >= r.left - 4 && x <= r.right + 4 && y >= r.top - 16 && y <= r.bottom + 16) {
-      return locate(state, id).term.kind === kind ? id : null;
+      return term.kind === kind ? id : null;
     }
   }
   return null;
@@ -332,7 +401,7 @@ function flipSign() {
   );
   setTimeout(() => {
     if (drag?.el !== el) return;
-    paint(el, term.kind, drag.side === home ? term.coef : neg(term.coef));
+    paint(el, term, drag.side === home ? term.coef : neg(term.coef));
   }, ms(110));
   boardEl.classList.remove('cross');
   void boardEl.offsetWidth;
@@ -352,13 +421,64 @@ function startDrag() {
 }
 
 function endDragVisuals() {
-  eqEl.classList.remove('dragging');
+  eqEl.classList.remove('dragging', 'scaling', 'armed');
   sideEls.forEach((s) => s.classList.remove('over'));
   previewEl.classList.remove('show');
+  tokenEl.classList.remove('show');
+  eqEl.querySelectorAll('.den.taken').forEach((el) => el.classList.remove('taken'));
+}
+
+function placeToken(x, y) {
+  tokenEl.style.left = `${x}px`;
+  tokenEl.style.top = `${y}px`;
+}
+
+function startScale(e) {
+  drag.started = true;
+  drag.scale = { k: Number(drag.den.dataset.d), taken: new Set([drag.den]), armed: false };
+  drag.den.classList.add('taken');
+  tokenEl.textContent = `×${drag.scale.k}`;
+  placeToken(e.clientX, e.clientY);
+  tokenEl.classList.add('show');
+  eqEl.classList.add('scaling');
+  sfx.lift();
+  buzz(8);
+}
+
+function overEquals(x, y) {
+  const r = equalsEl.getBoundingClientRect();
+  const b = eqEl.getBoundingClientRect();
+  return Math.abs(x - (r.left + r.width / 2)) < r.width / 2 + 24 && y > b.top - 24 && y < b.bottom + 24;
+}
+
+function moveScale(e) {
+  const sc = drag.scale;
+  placeToken(e.clientX, e.clientY);
+  const hit = document.elementFromPoint(e.clientX, e.clientY)?.closest('.den');
+  if (hit && eqEl.contains(hit) && isTopDen(hit) && !sc.taken.has(hit)) {
+    sc.taken.add(hit);
+    hit.classList.add('taken');
+    const k = lcm(sc.k, Number(hit.dataset.d));
+    if (k !== sc.k) {
+      sc.k = k;
+      tokenEl.textContent = `×${k}`;
+      tokenEl.animate(
+        [{ scale: 1 }, { scale: 1.35 }, { scale: 1 }],
+        { duration: ms(260), easing: 'ease-out' },
+      );
+      sfx.merge();
+      buzz([8, 30, 12]);
+    }
+  }
+  const armed = overEquals(e.clientX, e.clientY);
+  if (armed === sc.armed) return;
+  sc.armed = armed;
+  eqEl.classList.toggle('armed', armed);
+  if (armed) buzz(6);
 }
 
 function onPointerDown(e) {
-  const el = e.target.closest('.term');
+  const el = e.target.closest('.term.group') ?? e.target.closest('.term');
   if (!el || busy || drag || solved) return;
   e.preventDefault();
   sfx.wake();
@@ -366,7 +486,11 @@ function onPointerDown(e) {
   el.setPointerCapture(e.pointerId);
   const id = Number(el.dataset.id);
   const home = locate(state, id).side;
-  drag = { el, id, home, side: home, pointerId: e.pointerId, x0: e.clientX, y0: e.clientY, started: false, target: null };
+  const den = e.target.closest('.den');
+  drag = {
+    el, id, home, side: home, pointerId: e.pointerId, x0: e.clientX, y0: e.clientY, started: false, target: null,
+    den: den?.closest('.term') === el ? den : null,
+  };
 }
 
 function onPointerMove(e) {
@@ -375,8 +499,10 @@ function onPointerMove(e) {
   const dy = e.clientY - drag.y0;
   if (!drag.started) {
     if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
-    startDrag();
+    if (drag.den) startScale(e);
+    else startDrag();
   }
+  if (drag.scale) return moveScale(e);
   drag.el.style.transform = `translate(${dx}px, ${dy}px)`;
   const side = sideAt(e.clientX);
   if (side !== drag.side) {
@@ -393,6 +519,7 @@ function onPointerUp(e) {
   drag = null;
   endDragVisuals();
   if (!d.started) return tap(d);
+  if (d.scale) return d.scale.armed && e.type !== 'pointercancel' ? runMultiply(d.scale.k) : undefined;
   if (e.type === 'pointercancel') return render(measure());
   if (d.target != null) return dropOnto(d);
   const index = insertionIndex(d.side, e.clientX, d.id);
@@ -453,15 +580,66 @@ function shake(el) {
 
 function tap(d) {
   const term = locate(state, d.id).term;
+  if (term.kind === 'group') return runExpand(term);
   const div = divisor(state);
   if (div?.id === d.id) return runDivide(div);
   shake(d.el.querySelector('.face'));
   sfx.bad();
   buzz(30);
   if (term.kind === 'c') return say('数の項はつまんで動かそう', 'warn');
+  if (state.sides.flat().some((t) => t.kind === 'group' && hasX(t))) return say('割る前に、かっこを開こう', 'warn');
   if (state.sides.flat().filter((t) => t.kind === 'x').length > 1) return say('割れるのは x の項が 1 つにまとまってから', 'warn');
   if (isOne(term.coef)) return say('x はもう 1x。反対側を 1 つにまとめよう', 'warn');
   say('x の項を片側に 1 つだけにしてから割ろう', 'warn');
+}
+
+function flyLabel(text, from, to, delay) {
+  const el = document.createElement('span');
+  el.className = 'fly';
+  el.textContent = text;
+  el.style.fontSize = `${parseFloat(getComputedStyle(eqEl).fontSize) * 0.5}px`;
+  el.style.left = `${from.left + from.width / 2}px`;
+  el.style.top = `${from.top}px`;
+  document.body.append(el);
+  const dx = to.left + to.width / 2 - (from.left + from.width / 2);
+  const dy = to.top - from.top;
+  return el.animate(
+    [
+      { transform: 'translate(-50%, -100%) scale(.6)', opacity: 0 },
+      { transform: `translate(calc(-50% + ${dx * 0.5}px), calc(-100% + ${dy * 0.5 - 18}px)) scale(1.1)`, opacity: 1, offset: 0.5 },
+      { transform: `translate(calc(-50% + ${dx}px), calc(-100% + ${dy}px)) scale(.8)`, opacity: 0 },
+    ],
+    { duration: ms(420), delay, easing: 'ease-in-out', fill: 'backwards' },
+  ).finished.then(() => el.remove());
+}
+
+async function runExpand(group) {
+  busy = true;
+  updateHud();
+  const el = chips.get(group.id);
+  const body = el.querySelector(':scope > .face > .body');
+  const from = (body.childNodes.length ? body : el.querySelector(':scope > .face > .op')).getBoundingClientRect();
+  const label = `×${group.coef.n < 0 ? `(${ratText(group.coef)})` : ratText(group.coef)}`;
+  sfx.expand();
+  buzz(12);
+  await Promise.all(group.terms.map((t, i) => flyLabel(label, from, chips.get(t.id).getBoundingClientRect(), ms(i * 90))));
+  busy = false;
+  commit(expand(state, group.id), { pop: group.terms.map((t) => t.id) });
+}
+
+async function runMultiply(k) {
+  busy = true;
+  updateHud();
+  multEls.forEach((el) => {
+    el.textContent = `×${k}`;
+    el.classList.add('show');
+  });
+  sfx.multiply();
+  buzz(12);
+  await wait(ms(650));
+  multEls.forEach((el) => el.classList.remove('show'));
+  busy = false;
+  commit(multiply(state, k), { pop: state.sides.flat().flatMap(idsOf) });
 }
 
 async function runDivide(div) {

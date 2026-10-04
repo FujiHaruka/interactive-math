@@ -269,7 +269,7 @@ svg { width: 1.25em; height: 1.25em; fill: none; stroke: currentColor; stroke-wi
   color: var(--xink);
 }
 
-.lifted .face {
+.lifted > .face {
   transform: scale(1.14) rotate(-3deg);
   box-shadow: 0 0.3em 0.55em var(--shadow);
 }
@@ -280,14 +280,14 @@ svg { width: 1.25em; height: 1.25em; fill: none; stroke: currentColor; stroke-wi
   margin-right: 0.04em;
 }
 
-.lead .op {
+.lead:not(.neg) > .face > .op {
   position: absolute;
   right: 100%;
   margin-right: 0.12em;
   opacity: 0;
 }
 
-.lifted.lead .op {
+.lifted.lead > .face > .op {
   position: static;
   opacity: 0.6;
   margin-right: 0.04em;
@@ -312,6 +312,106 @@ svg { width: 1.25em; height: 1.25em; fill: none; stroke: currentColor; stroke-wi
 
 .frac > span:first-child { border-bottom: 0.11em solid currentColor; padding: 0 0.12em; }
 
+.group > .face {
+  background: var(--zone);
+  border: 0.05em dashed var(--cedge);
+  box-shadow: none;
+  padding: 0.12em 0.2em 0.14em;
+}
+
+.paren {
+  font-family: "STIX Two Text", "Times New Roman", serif;
+  font-weight: 400;
+  font-size: 1.2em;
+  line-height: 0.8;
+  color: var(--muted);
+}
+
+.members {
+  display: flex;
+  align-items: center;
+  gap: 0.12em;
+  font-size: 0.82em;
+}
+
+.member { cursor: inherit; }
+
+.eq .den {
+  position: relative;
+  color: var(--pen);
+  cursor: grab;
+  transition: color 0.12s, transform 0.12s;
+}
+
+.eq .den::after {
+  content: "";
+  position: absolute;
+  inset: -0.25em -0.7em -0.6em;
+}
+
+.eq .member .den { color: inherit; cursor: inherit; }
+.eq .member .den::after { content: none; }
+.eq .den.taken { color: var(--ok); transform: scale(1.25); }
+.eq .den.hint-den { animation: nudge 1.1s ease-in-out infinite; }
+
+.equals { transition: transform 0.15s cubic-bezier(.3, .8, .3, 1.6), color 0.15s; }
+.eq.scaling .equals { transform: scale(1.15); }
+.eq.armed .equals { transform: scale(1.45); color: var(--ok); }
+.eq.scaling .side { background: var(--zone); }
+.eq.armed .side { background: var(--zone-on); }
+.equals.hint-eq { animation: breathe-eq 1.1s ease-in-out infinite; }
+
+@keyframes breathe-eq {
+  50% { transform: scale(1.3); }
+}
+
+.mult {
+  position: absolute;
+  bottom: calc(100% + 0.05em);
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-family: Lexend, sans-serif;
+  font-weight: 600;
+  font-size: 0.6em;
+  color: var(--pen);
+  transform: scale(0);
+  opacity: 0;
+  transition: transform 0.25s cubic-bezier(.3, .8, .3, 1.6), opacity 0.2s;
+  pointer-events: none;
+}
+
+.mult.show { transform: scale(1); opacity: 1; }
+
+.token {
+  position: fixed;
+  z-index: 30;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--pen);
+  color: #fff;
+  font-family: Lexend, sans-serif;
+  font-weight: 600;
+  font-size: 22px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -150%);
+  transition: opacity 0.12s;
+}
+
+.token.show { opacity: 1; }
+
+.fly {
+  position: fixed;
+  z-index: 30;
+  pointer-events: none;
+  font-family: Lexend, sans-serif;
+  font-weight: 600;
+  color: var(--pen);
+  white-space: nowrap;
+}
+
 .zero {
   font-family: Lexend, sans-serif;
   font-weight: 600;
@@ -319,7 +419,7 @@ svg { width: 1.25em; height: 1.25em; fill: none; stroke: currentColor; stroke-wi
   padding: 0 0.3em;
 }
 
-.term.target .face {
+.term.target > .face {
   outline: 0.08em solid var(--ok);
   outline-offset: 0.08em;
   transform: scale(1.06);
@@ -332,8 +432,8 @@ svg { width: 1.25em; height: 1.25em; fill: none; stroke: currentColor; stroke-wi
   color: #fff;
 }
 
-.term.hint-src .face, .term.hint-tap .face { animation: nudge 1.1s ease-in-out infinite; }
-.term.hint-dst .face { outline: 0.07em dashed var(--ok); outline-offset: 0.1em; }
+.term.hint-src > .face, .term.hint-tap > .face { animation: nudge 1.1s ease-in-out infinite; }
+.term.hint-dst > .face { outline: 0.07em dashed var(--ok); outline-offset: 0.1em; }
 
 @keyframes nudge {
   0%, 100% { transform: translateY(0); }
