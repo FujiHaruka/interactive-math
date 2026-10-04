@@ -15,7 +15,10 @@
   <div class="app">
     <header class="top">
       <div class="title">
-        <span class="kind">一次方程式</span>
+        <div class="modes" role="group" aria-label="方程式の種類">
+          <button type="button" data-mode="linear" aria-pressed="true">一次方程式</button>
+          <button type="button" data-mode="quad" aria-pressed="false">二次方程式</button>
+        </div>
         <span class="lv" id="lv">Lv.1</span>
         <button class="icon" id="sound" type="button" aria-label="効果音" aria-pressed="true">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="wave" d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>
@@ -26,11 +29,15 @@
 
     <main class="board" id="board">
       <p class="score" id="score"></p>
-      <div class="eq" id="eq">
-        <div class="side" data-side="0"><div class="stack"><div class="mult"></div><div class="terms"></div><div class="denom"></div></div></div>
-        <div class="equals">=</div>
-        <div class="side" data-side="1"><div class="stack"><div class="mult"></div><div class="terms"></div><div class="denom"></div></div></div>
-      </div>
+      <div class="lanes" id="lanes"></div>
+      <section class="area" id="area" hidden aria-label="面積図">
+        <button class="icon area-close" id="area-close" type="button" aria-label="面積図を閉じる">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+        <div class="area-box" id="area-box" tabindex="0" role="slider" aria-label="x の帯の分け方"></div>
+        <p class="area-read" id="area-read"></p>
+        <button class="area-go" id="area-go" type="button"></button>
+      </section>
       <p class="coach" id="coach" aria-live="polite"></p>
       <div class="preview" id="preview" aria-hidden="true"></div>
       <div class="token" id="token" aria-hidden="true"></div>

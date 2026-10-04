@@ -7,6 +7,9 @@
   --xtile: #FFC94A;
   --xedge: #D29317;
   --xink: #2A1D00;
+  --x2tile: #A6DAFF;
+  --x2edge: #4E9AD0;
+  --x2ink: #062A44;
   --ctile: #FFFFFF;
   --cedge: #B7C4D8;
   --ok: #23996A;
@@ -28,6 +31,9 @@
     --xtile: #F6BC3E;
     --xedge: #A9730A;
     --xink: #241800;
+    --x2tile: #74BCEB;
+    --x2edge: #2F6E9E;
+    --x2ink: #04192A;
     --ctile: #222C42;
     --cedge: #3A4762;
     --ok: #3CC48C;
@@ -48,6 +54,9 @@
   --xtile: #F6BC3E;
   --xedge: #A9730A;
   --xink: #241800;
+  --x2tile: #74BCEB;
+  --x2edge: #2F6E9E;
+  --x2ink: #04192A;
   --ctile: #222C42;
   --cedge: #3A4762;
   --ok: #3CC48C;
@@ -100,9 +109,29 @@ svg { width: 1.25em; height: 1.25em; fill: none; stroke: currentColor; stroke-wi
 
 .top { padding: 14px 16px 0; }
 
-.title { display: flex; align-items: baseline; gap: 10px; }
+.title { display: flex; align-items: center; gap: 10px; }
 
-.kind { font-weight: 700; font-size: 15px; letter-spacing: 0.08em; }
+.modes {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--zone);
+  border: 1px solid var(--grid);
+}
+
+.modes button {
+  border: 0;
+  background: none;
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.modes button[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px var(--shadow); }
 
 .lv { font-family: Lexend, sans-serif; font-weight: 600; font-size: 15px; color: var(--pen); }
 
@@ -171,6 +200,10 @@ svg { width: 1.25em; height: 1.25em; fill: none; stroke: currentColor; stroke-wi
   100% { opacity: 0.18; }
 }
 
+.board.area-open { gap: 10px; justify-content: flex-start; padding-top: 6px; }
+.board.area-open::before, .board.area-open .score { display: none; }
+.board.area-open .side { min-height: 2.2em; padding-bottom: 0.35em; }
+
 .score {
   margin: 0;
   text-align: center;
@@ -190,9 +223,23 @@ svg { width: 1.25em; height: 1.25em; fill: none; stroke: currentColor; stroke-wi
   margin-right: 10px;
 }
 
-.eq {
+.lanes {
   --fs: 40px;
   font-size: var(--fs);
+  display: flex;
+  flex-direction: column;
+}
+
+.or {
+  margin: -0.55em 0 -0.15em;
+  text-align: center;
+  font-size: 0.32em;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+
+.eq {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
@@ -268,6 +315,31 @@ svg { width: 1.25em; height: 1.25em; fill: none; stroke: currentColor; stroke-wi
   box-shadow: 0 0.09em 0 var(--xedge);
   color: var(--xink);
 }
+
+.kind-x2 .face {
+  background: var(--x2tile);
+  border-color: var(--x2edge);
+  box-shadow: 0 0.09em 0 var(--x2edge);
+  color: var(--x2ink);
+}
+
+.pow {
+  font-family: Lexend, sans-serif;
+  font-weight: 600;
+  font-size: 0.55em;
+  line-height: 0;
+  position: relative;
+  top: -0.55em;
+  margin-left: 0.04em;
+}
+
+.face > .pow { align-self: flex-start; top: 0.2em; line-height: 1; }
+
+.surd { white-space: nowrap; }
+.rad { border-top: 0.08em solid currentColor; padding: 0 0.05em; margin-left: 0.02em; }
+
+.term.pm > .face > .op, .lead.pm > .face > .op { position: static; opacity: 1; color: var(--pen); font-weight: 600; }
+.term.picked > .face { outline: 0.08em solid var(--x2edge); outline-offset: 0.08em; }
 
 .lifted > .face {
   transform: scale(1.14) rotate(-3deg);
@@ -435,7 +507,7 @@ svg { width: 1.25em; height: 1.25em; fill: none; stroke: currentColor; stroke-wi
   transform: scale(1.06);
 }
 
-.term.solved .face {
+.eq.done .face, .term.solved .face {
   background: var(--ok);
   border-color: var(--ok);
   box-shadow: 0 0.09em 0 color-mix(in srgb, var(--ok), #000 30%);
@@ -617,3 +689,160 @@ svg { width: 1.25em; height: 1.25em; fill: none; stroke: currentColor; stroke-wi
 @media (min-width: 600px) {
   .coach { font-size: 16px; }
 }
+
+.area {
+  margin: 0 12px;
+  padding: 12px 12px 12px;
+  border-radius: 18px;
+  background: var(--card);
+  border: 1.5px solid var(--grid);
+  box-shadow: 0 6px 24px var(--shadow);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.area[hidden] { display: none; }
+
+.area { position: relative; }
+.area-close { position: absolute; top: 4px; right: 4px; z-index: 6; }
+
+.area-box {
+  --u: 14px;
+  position: relative;
+  align-self: center;
+  touch-action: none;
+  cursor: grab;
+  font-family: Lexend, sans-serif;
+  outline: none;
+}
+
+.area.grabbing .area-box { cursor: grabbing; }
+.area-box:focus-visible { outline: 2px solid var(--pen); outline-offset: 4px; border-radius: 6px; }
+.area-box > * { position: absolute; }
+
+.cell {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 3px;
+  font-weight: 600;
+}
+
+.cell.x2 {
+  background: var(--x2tile);
+  border: 1.5px solid var(--x2edge);
+  color: var(--x2ink);
+  font-size: 20px;
+}
+
+.cell.strip {
+  z-index: 1;
+  font-size: 12px;
+  background-color: var(--xtile);
+  border: 1.5px solid var(--xedge);
+  color: var(--xink);
+}
+
+.cell.strip.v { background-image: repeating-linear-gradient(90deg, transparent 0 calc(var(--u) - 1.5px), var(--xedge) calc(var(--u) - 1.5px) var(--u)); }
+.cell.strip.h { background-image: repeating-linear-gradient(180deg, transparent 0 calc(var(--u) - 1.5px), var(--xedge) calc(var(--u) - 1.5px) var(--u)); }
+
+.cell.strip.neg {
+  z-index: 2;
+  background-color: color-mix(in srgb, var(--pen) 26%, transparent);
+  border: 1.5px dashed var(--pen);
+  color: var(--pen);
+}
+
+.cell.strip.neg.v { background-image: repeating-linear-gradient(90deg, transparent 0 calc(var(--u) - 1px), color-mix(in srgb, var(--pen) 50%, transparent) calc(var(--u) - 1px) var(--u)); }
+.cell.strip.neg.h { background-image: repeating-linear-gradient(180deg, transparent 0 calc(var(--u) - 1px), color-mix(in srgb, var(--pen) 50%, transparent) calc(var(--u) - 1px) var(--u)); }
+
+.cell.strip span { background: color-mix(in srgb, var(--card) 70%, transparent); border-radius: 4px; padding: 0 3px; line-height: 1.2; }
+.cell.strip span:empty { display: none; }
+
+.cell.corner {
+  z-index: 3;
+  display: grid;
+  place-items: stretch;
+  grid-auto-rows: 1fr;
+  gap: 1px;
+  padding: 1px;
+  border-radius: 2px;
+}
+
+.corner i { border-radius: 2px; }
+.corner i.fill { background: var(--ctile); box-shadow: inset 0 0 0 1px var(--cedge); }
+.corner i.hole { border: 1px dashed var(--muted); }
+.corner.neg i.fill { background: color-mix(in srgb, var(--pen) 45%, var(--ctile)); box-shadow: inset 0 0 0 1px var(--pen); }
+.corner.neg i.hole { border-color: var(--pen); }
+.cell.corner.whole { display: grid; font-size: 11px; color: var(--muted); border: 1px dashed var(--muted); }
+
+.frame {
+  z-index: 4;
+  border: 2px solid var(--ink);
+  border-radius: 4px;
+  opacity: 0.3;
+  pointer-events: none;
+  transition: opacity 0.15s, box-shadow 0.15s;
+}
+
+.area.square .frame { border-color: var(--gold); opacity: 1; }
+.area.match .frame { border-color: var(--ok); opacity: 1; box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok) 25%, transparent); }
+
+.dim {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.knob {
+  z-index: 5;
+  width: 26px;
+  height: 26px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--pen) 12%, transparent);
+  border: 4px solid var(--pen);
+  box-shadow: 0 0 0 2px var(--card), 0 2px 8px var(--shadow);
+  transition: transform 0.12s;
+}
+
+.area.grabbing .knob { transform: scale(1.2); }
+.area.hint-handle .knob { animation: ring 1.1s ease-out infinite; }
+
+@keyframes ring {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--pen) 60%, transparent), 0 2px 8px var(--shadow); }
+  100% { box-shadow: 0 0 0 16px transparent, 0 2px 8px var(--shadow); }
+}
+
+.area-read {
+  margin: 0;
+  text-align: center;
+  font-family: Lexend, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.area-read .form { font-weight: 600; }
+.area-read b.ok { color: var(--ok); }
+.area-read b.bad { color: var(--pen); }
+.area-read small { font-size: 12px; color: var(--muted); }
+.area-read .pow { font-size: 0.6em; }
+
+.area-go {
+  height: 46px;
+  border-radius: 12px;
+  border: 1.5px solid var(--cedge);
+  background: var(--ctile);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.area-go:disabled { color: var(--muted); cursor: default; }
+.area-go.primary { background: var(--ok); border-color: var(--ok); color: #fff; box-shadow: 0 3px 0 color-mix(in srgb, var(--ok), #000 30%); }
+
+.answer small { font-size: 0.45em; color: var(--muted); }
